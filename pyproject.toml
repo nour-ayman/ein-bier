@@ -1,0 +1,21 @@
+[project]
+name = "ein-bier"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "Wezza", email = "nouraymanix@gmail.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "nbconvert>=7.17.1",
+    "nbformat>=5.11.1",
+    "streamlit>=1.65.0",
+]
+
+[project.scripts]
+ein-bier = "ein_bier:main"
+
+[build-system]
+requires = ["uv_build>=0.13.0,<0.14.0"]
+build-backend = "uv_build"

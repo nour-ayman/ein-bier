@@ -1,0 +1,22 @@
+# Virtual Environments
+.venv/
+venv/
+ENV/
+env/
+
+# PyInstaller / Build Artifacts
+build/
+dist/
+*.spec
+
+# Python Cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.log
+
+# Debug logs
+app_debug.log
+
+# Streamlit Cache
+.streamlit/
