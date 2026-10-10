@@ -1,75 +1,62 @@
-import io
 import os
 import sys
+import html
+import base64
 import nbformat
 from nbconvert import HTMLExporter
 
-
-def get_jupyter_data_dir():
-    """
-    Locates the bundled jupyter data directory containing nbconvert templates.
-    Works seamlessly both in local development and inside PyInstaller's _internal directory.
-    """
+def get_template_dirs():
+    dirs = []
     if getattr(sys, "frozen", False):
         base_dir = os.path.join(os.path.dirname(sys.executable), "_internal")
     else:
         base_dir = sys.prefix
 
-    jupyter_dir = os.path.join(base_dir, "share", "jupyter")
-    return jupyter_dir if os.path.exists(jupyter_dir) else None
+    cand = os.path.join(base_dir, "share", "jupyter", "nbconvert", "templates")
+    if os.path.exists(cand):
+        dirs.append(cand)
+    return dirs
 
+def render_fallback_html(nb) -> str:
+    """Built-in basic renderer if nbconvert templates fail completely."""
+    parts = ["<!DOCTYPE html><html><head><meta charset='utf-8'><title>Notebook</title>",
+             "<style>body{font-family:sans-serif;margin:40px;line-height:1.6}pre{background:#f4f4f4;padding:10px;border-radius:4px;overflow-x:auto}img{max-width:100%}</style></head><body>"]
+    for cell in nb.get("cells", []):
+        cell_type = cell.get("cell_type", "")
+        source = "".join(cell.get("source", ""))
+        if cell_type == "markdown":
+            parts.append(f"<div>{html.escape(source)}</div>")
+        elif cell_type == "code":
+            parts.append(f"<pre><code>{html.escape(source)}</code></pre>")
+            for out in cell.get("outputs", []):
+                data = out.get("data", {})
+                if "text/plain" in data:
+                    parts.append(f"<pre style='color:#555'>{html.escape(''.join(data['text/plain']))}</pre>")
+                if "image/png" in data:
+                    parts.append(f"<img src='data:image/png;base64,{data['image/png']}' />")
+    parts.append("</body></html>")
+    return "\n".join(parts)
 
 def convert_ipynb_to_html(notebook_bytes=None, notebook_path=None, **kwargs) -> str:
-    """
-    Converts Jupyter Notebook to standalone HTML.
-    Supports either notebook_bytes (from Streamlit uploader) or a local notebook_path.
-    """
-    # 1. Set environment variable for jupyter templates
-    jupyter_dir = get_jupyter_data_dir()
-    if jupyter_dir:
-        os.environ["JUPYTER_PATH"] = jupyter_dir
-
-    template_dir = None
-    if jupyter_dir:
-        cand_templates = os.path.join(jupyter_dir, "nbconvert", "templates")
-        if os.path.exists(cand_templates):
-            template_dir = cand_templates
-
-    # 2. Parse notebook from bytes or file path
     if notebook_bytes is not None:
-        if isinstance(notebook_bytes, bytes):
-            notebook_str = notebook_bytes.decode("utf-8")
-        else:
-            notebook_str = str(notebook_bytes)
-        nb = nbformat.reads(notebook_str, as_version=4)
+        nb_str = notebook_bytes.decode("utf-8") if isinstance(notebook_bytes, bytes) else str(notebook_bytes)
+        nb = nbformat.reads(nb_str, as_version=4)
     elif notebook_path is not None:
         with open(notebook_path, "r", encoding="utf-8") as f:
             nb = nbformat.read(f, as_version=4)
     else:
         raise ValueError("Either notebook_bytes or notebook_path must be provided.")
 
-    # 3. Export to HTML using classic or fallback to basic
-    try:
-        if template_dir:
-            exporter = HTMLExporter(
-                template_name="classic",
-                extra_template_basedirs=[template_dir]
-            )
-        else:
-            exporter = HTMLExporter(template_name="classic")
+    template_dirs = get_template_dirs()
+    for tpl in ["lab", "classic", "basic"]:
+        try:
+            kwargs_exp = {"template_name": tpl}
+            if template_dirs:
+                kwargs_exp["extra_template_basedirs"] = template_dirs
+            exporter = HTMLExporter(**kwargs_exp)
+            body, _ = exporter.from_notebook_node(nb)
+            return body
+        except Exception:
+            continue
 
-        body, _ = exporter.from_notebook_node(nb)
-        return body
-
-    except Exception as exc:
-        print(f"Classic template failed ({exc}), falling back to basic template.")
-        if template_dir:
-            exporter = HTMLExporter(
-                template_name="basic",
-                extra_template_basedirs=[template_dir]
-            )
-        else:
-            exporter = HTMLExporter(template_name="basic")
-
-        body, _ = exporter.from_notebook_node(nb)
-        return body
+    return render_fallback_html(nb)
