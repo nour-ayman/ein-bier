@@ -1,14 +1,14 @@
 [Setup]
 AppId={{D9A4C62B-8E41-48C7-B8FA-32A1C0F7B812}
 AppName=ein Bier
-AppVersion=1.0
+AppVersion=1.1
 AppPublisher=Wenz
 DefaultDirName={localappdata}\Programs\ein Bier
 DefaultGroupName=ein Bier
 DisableProgramGroupPage=yes
 PrivilegesRequired=lowest
 OutputDir=installer_output
-OutputBaseFilename=ein_Bier_Setup
+OutputBaseFilename=ein_Bier_Setup_v1.1
 SetupIconFile=static\img\wenz.ico
 Compression=lzma2/ultra64
 SolidCompression=yes
