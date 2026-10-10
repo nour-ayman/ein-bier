@@ -1,3 +1,4 @@
+import io
 import os
 import sys
 import nbformat
@@ -18,28 +19,36 @@ def get_jupyter_data_dir():
     return jupyter_dir if os.path.exists(jupyter_dir) else None
 
 
-def convert_ipynb_to_html(notebook_path: str) -> str:
+def convert_ipynb_to_html(notebook_bytes=None, notebook_path=None, **kwargs) -> str:
     """
-    Converts a Jupyter Notebook (.ipynb) to a standalone HTML string.
-    Safely resolves template paths to prevent 'no template sub-directory' errors.
+    Converts Jupyter Notebook to standalone HTML.
+    Supports either notebook_bytes (from Streamlit uploader) or a local notebook_path.
     """
-    # 1. Inject JUPYTER_PATH dynamically into the environment
+    # 1. Set environment variable for jupyter templates
     jupyter_dir = get_jupyter_data_dir()
     if jupyter_dir:
         os.environ["JUPYTER_PATH"] = jupyter_dir
 
-    # 2. Check for explicit template folder
     template_dir = None
     if jupyter_dir:
         cand_templates = os.path.join(jupyter_dir, "nbconvert", "templates")
         if os.path.exists(cand_templates):
             template_dir = cand_templates
 
-    # 3. Read the notebook file
-    with open(notebook_path, "r", encoding="utf-8") as f:
-        nb = nbformat.read(f, as_version=4)
+    # 2. Parse notebook from bytes or file path
+    if notebook_bytes is not None:
+        if isinstance(notebook_bytes, bytes):
+            notebook_str = notebook_bytes.decode("utf-8")
+        else:
+            notebook_str = str(notebook_bytes)
+        nb = nbformat.reads(notebook_str, as_version=4)
+    elif notebook_path is not None:
+        with open(notebook_path, "r", encoding="utf-8") as f:
+            nb = nbformat.read(f, as_version=4)
+    else:
+        raise ValueError("Either notebook_bytes or notebook_path must be provided.")
 
-    # 4. Initialize HTMLExporter with classic template and extra search path
+    # 3. Export to HTML using classic or fallback to basic
     try:
         if template_dir:
             exporter = HTMLExporter(
@@ -53,8 +62,7 @@ def convert_ipynb_to_html(notebook_path: str) -> str:
         return body
 
     except Exception as exc:
-        # Fallback to 'basic' template if classic assets have any issue
-        print(f"Warning: Falling back to basic template due to: {exc}")
+        print(f"Classic template failed ({exc}), falling back to basic template.")
         if template_dir:
             exporter = HTMLExporter(
                 template_name="basic",
